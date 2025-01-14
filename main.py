@@ -1,66 +1,88 @@
 import os
 import json
-from fbchat import Client, Message, ThreadType
-from config import APPSTATE_FILE, PREFIX, ADMIN_UID, BOT_NAME
-from utils.logger import log
+from fbchat import Client
+from fbchat.models import Message, ThreadType
 
-# Load session cookies from appstate.json
+# Load configuration from config.json
+with open("config.json", "r") as f:
+    config = json.load(f)
+
+# Extract values from config
+BOT_NAME = config["BOT_NAME"]
+ADMIN_UID = config["ADMIN_UID"]
+
+# Configuration for appstate file
+APPSTATE_FILE = "appstate.json"  # Path to your appstate.json
+
+# Function to generate appstate.json if it doesn't exist or is invalid
+def generate_appstate():
+    email = "YOUR_FACEBOOK_EMAIL"  # Replace with your Facebook email
+    password = "YOUR_FACEBOOK_PASSWORD"  # Replace with your Facebook password
+    
+    client = Client(email, password)
+    with open(APPSTATE_FILE, "w") as f:
+        json.dump(client.getSession(), f)
+    
+    print(f"Session cookies saved to {APPSTATE_FILE}")
+    client.logout()
+
+# Check if appstate.json exists or is invalid
 if not os.path.exists(APPSTATE_FILE):
-    raise FileNotFoundError(f"{APPSTATE_FILE} not found. Please generate it using a valid session.")
+    print(f"{APPSTATE_FILE} not found. Generating a new one...")
+    generate_appstate()
 
-with open(APPSTATE_FILE, "r") as f:
-    appstate = json.load(f)
-
-# Initialize Client using session cookies
+# Load appstate.json
 try:
-    client = Client.from_session_cookies(appstate)
-    log(f"{BOT_NAME} logged in successfully!")
+    with open(APPSTATE_FILE, "r") as f:
+        appstate = json.load(f)
 except Exception as e:
-    log(f"Failed to login using session cookies: {e}")
-    raise
+    print(f"[ERROR]: Failed to load {APPSTATE_FILE}: {e}. Generating a new one...")
+    generate_appstate()
+    with open(APPSTATE_FILE, "r") as f:
+        appstate = json.load(f)
 
-# Load all commands dynamically
-COMMANDS = {}
-commands_path = "commands"
-for file in os.listdir(commands_path):
-    if file.endswith(".py") and file != "__init__.py":
-        command_name = file[:-3]  # Remove .py extension
-        COMMANDS[command_name] = __import__(f"{commands_path}.{command_name}", fromlist=[""])
+# Initialize client with session cookies
+try:
+    client = Client(session_cookies=appstate)
+    print(f"[{BOT_NAME}]: Logged in successfully as {client.uid}!")
+except Exception as e:
+    print(f"[ERROR]: Failed to log in using session cookies: {e}")
+    raise
 
 # Message Listener
 class Bot(Client):
-    async def on_message(self, message: Message):
-        author_id = message.author.id
-        thread_id = message.thread.id
-        thread_type = message.thread.type
-
-        if author_id == self.user.id:  # Ignore bot's own messages
+    def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        # Ignore bot's own messages
+        if author_id == self.uid:
             return
 
-        message_text = message.text or ""
-        log(f"Message received from {author_id}: {message_text}")
+        message_text = message_object.text or ""
+        print(f"[MESSAGE]: Received from {author_id}: {message_text}")
 
-        if message_text.startswith(PREFIX):
-            command_name = message_text[len(PREFIX):].split(" ")[0]
-            if command_name in COMMANDS:
-                if author_id == ADMIN_UID:
-                    await COMMANDS[command_name].execute(self, message=message)
-                    log(f"Command executed: {command_name} by {author_id}")
+        # Handle Commands
+        if message_text.startswith("!"):  # Commands prefixed with "!"
+            command = message_text[1:].strip().split()[0]  # Get the command
+            if author_id == ADMIN_UID:
+                if command == "hello":
+                    self.send(Message(text="Hello, Admin!"), thread_id=thread_id, thread_type=thread_type)
+                elif command == "stop":
+                    self.send(Message(text="Stopping the bot..."), thread_id=thread_id, thread_type=thread_type)
+                    print("[BOT]: Stopping...")
+                    self.logout()
                 else:
-                    await self.send(Message(text="Only admin can execute commands!"), thread_id=thread_id, thread_type=thread_type)
-                    log(f"Unauthorized command attempt: {command_name} by {author_id}")
+                    self.send(Message(text=f"Unknown command: {command}"), thread_id=thread_id, thread_type=thread_type)
             else:
-                await self.send(Message(text="Unknown command!"), thread_id=thread_id, thread_type=thread_type)
-                log(f"Unknown command: {command_name} by {author_id}")
+                self.send(Message(text="You are not authorized to use commands!"), thread_id=thread_id, thread_type=thread_type)
 
-# Start Bot
+# Start the bot
 if __name__ == "__main__":
-    bot = Bot.from_session_cookies(appstate)
-    log(f"{BOT_NAME} is running!")
+    bot = Bot(session_cookies=appstate)
+    print(f"[{BOT_NAME}]: Bot is now running!")
 
     try:
-        bot.listen()
+        bot.listen()  # Start listening to messages
     except KeyboardInterrupt:
-        log("Bot stopped.")
+        print(f"[{BOT_NAME}]: Bot stopped by user.")
+        bot.logout()
     except Exception as e:
-        log(f"An error occurred: {e}")
+        print(f"[ERROR]: An unexpected error occurred: {e}")
