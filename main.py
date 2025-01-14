@@ -1,18 +1,24 @@
-# main.py
 import os
 import json
-import importlib
 from fbchat import Client, ThreadType
 from fbchat.models import Message
 from config import APPSTATE_FILE, PREFIX, ADMIN_UID, BOT_NAME
 from utils.logger import log
 
-# Load appstate
+# Load session cookies from appstate.json
+if not os.path.exists(APPSTATE_FILE):
+    raise FileNotFoundError(f"{APPSTATE_FILE} not found. Please generate it using a valid session.")
+
 with open(APPSTATE_FILE, "r") as f:
     appstate = json.load(f)
 
-# Initialize Client
-client = Client(session_cookies=appstate)
+# Initialize Client using session cookies
+try:
+    client = Client(session_cookies=appstate)
+    log(f"{BOT_NAME} logged in successfully!")
+except Exception as e:
+    log(f"Failed to login using session cookies: {e}")
+    raise
 
 # Load all commands dynamically
 COMMANDS = {}
@@ -20,7 +26,7 @@ commands_path = "commands"
 for file in os.listdir(commands_path):
     if file.endswith(".py") and file != "__init__.py":
         command_name = file[:-3]  # Remove .py extension
-        COMMANDS[command_name] = importlib.import_module(f"{commands_path}.{command_name}")
+        COMMANDS[command_name] = __import__(f"{commands_path}.{command_name}", fromlist=[""])
 
 # Message Listener
 class Bot(Client):
@@ -56,3 +62,5 @@ if __name__ == "__main__":
         bot.listen()
     except KeyboardInterrupt:
         log("Bot stopped.")
+    except Exception as e:
+        log(f"An error occurred: {e}")
