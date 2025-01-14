@@ -11,8 +11,8 @@ logger = logging.getLogger()
 
 # Function to generate appstate.json if it doesn't exist or is invalid
 def generate_appstate():
-    email = "YOUR_FACEBOOK_EMAIL"  # Replace with your Facebook email
-    password = "YOUR_FACEBOOK_PASSWORD"  # Replace with your Facebook password
+    email = "mowolow638@chansd.com"  # Replace with your Facebook email
+    password = "smart chora sahil khan"  # Replace with your Facebook password
     
     client = Client(email, password)
     with open(APPSTATE_FILE, "w") as f:
