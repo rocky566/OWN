@@ -1,7 +1,7 @@
 # config.py
 
 # Bot Configuration
-ADMIN_UID = "YOUR_ADMIN_UID"  # Replace with your admin UID
+ADMIN_UID = "61567164537951"  # Replace with your admin UID
 PREFIX = "!"  # Command prefix
 BOT_NAME = "MyFBot"  # Bot name
 
